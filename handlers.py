@@ -88,7 +88,7 @@ async def help_from_menu(callback: CallbackQuery):
 async def register_user(message: Message):
     parts = message.text.split(maxsplit=1)
     if len(parts) < 2:
-        await message.answer("Используйте: /reg <ваш ник>")
+        await message.answer("Используйте: /reg [ваш ник]")
         return
     username = parts[1].strip()
     add_user(message.from_user.id, message.chat.id, username)
@@ -99,11 +99,11 @@ async def register_user(message: Message):
 async def start_tournament(message: Message, state: FSMContext):
     username = get_user(message.from_user.id, message.chat.id)
     if not username:
-        await message.answer("Сначала зарегистрируйтесь через /reg <ник>")
+        await message.answer("Сначала зарегистрируйтесь через /reg [ваш ник]")
         return
     parts = message.text.split(maxsplit=1)
     if len(parts) < 2:
-        await message.answer("Используйте: /tournament <название>")
+        await message.answer("Используйте: /tournament [название]")
         return
     await state.update_data(tournament_name=parts[1].strip())
     await message.answer("Выберите формат турнира:", reply_markup=tournament_format_kb())
@@ -119,7 +119,7 @@ async def handle_format(callback: CallbackQuery, state: FSMContext):
         count = int(fmt)
         await callback.message.answer(
             f"Введите данные для {count} команд в формате:\n\n"
-            "Название\nУчастник1\nУчастник2\nУчастник3\n\n"
+            "Название\nИгрок1\nИгрок2\nИгрок3\n\n"
             "Разделите команды пустой строкой."
         )
         await state.set_state(TournamentStates.waiting_for_teams)
