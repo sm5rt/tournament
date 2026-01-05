@@ -59,24 +59,17 @@ def create_initial_matches(cur, tournament_id: int, bracket: Dict[str, Any]):
         ''', (tournament_id, first_round, team1_id, team2_id))
 
 def advance_bracket(cur, tournament_id: int, finished_round: str):
-    # Получаем все матчи турнира
     cur.execute('SELECT bracket FROM tournaments WHERE id = ?', (tournament_id,))
     bracket_json = cur.fetchone()[0]
     bracket = json.loads(bracket_json)
 
-    cur.execute('SELECT round_name FROM matches WHERE tournament_id = ? AND winner_team_id IS NOT NULL GROUP BY round_name', (tournament_id,))
-    completed_rounds = {r[0] for r in cur.fetchall()}
-
     current_round_index = bracket["rounds"].index(finished_round)
     if current_round_index + 1 >= len(bracket["rounds"]):
-        # Турнир завершён
-        # Определяем победителя и 2-3-4 места
         finalize_tournament(cur, tournament_id, bracket)
         return
 
     next_round = bracket["rounds"][current_round_index + 1]
 
-    # Получаем победителей текущего раунда
     cur.execute('''
         SELECT winner_team_id FROM matches
         WHERE tournament_id = ? AND round_name = ?
@@ -85,7 +78,6 @@ def advance_bracket(cur, tournament_id: int, finished_round: str):
     winners = [row[0] for row in cur.fetchall()]
 
     if next_round == "third_place" and finished_round == "semi":
-        # Для 4/8/16: матч за 3-е место между проигравшими полуфиналов
         cur.execute('''
             SELECT team1_id, team2_id, winner_team_id FROM matches
             WHERE tournament_id = ? AND round_name = ?
@@ -101,17 +93,13 @@ def advance_bracket(cur, tournament_id: int, finished_round: str):
             ''', (tournament_id, "third_place", losers[0], losers[1]))
         return
 
-    # Обычный переход: пары победителей
     if len(winners) % 2 != 0:
-        return  # ошибка
+        return
 
     new_pairs = [(winners[i], winners[i+1]) for i in range(0, len(winners), 2)]
     bracket["matches"][next_round] = new_pairs
-
-    # Сохраняем обновлённую сетку
     cur.execute('UPDATE tournaments SET bracket = ? WHERE id = ?', (json.dumps(bracket), tournament_id))
 
-    # Создаём матчи
     for t1, t2 in new_pairs:
         cur.execute('''
             INSERT INTO matches (tournament_id, round_name, team1_id, team2_id)
@@ -119,7 +107,6 @@ def advance_bracket(cur, tournament_id: int, finished_round: str):
         ''', (tournament_id, next_round, t1, t2))
 
 def finalize_tournament(cur, tournament_id: int, bracket: dict):
-    # Победитель — победитель финала
     cur.execute('''
         SELECT winner_team_id FROM matches
         WHERE tournament_id = ? AND round_name = 'final'
@@ -130,16 +117,13 @@ def finalize_tournament(cur, tournament_id: int, bracket: dict):
         cur.execute('UPDATE tournaments SET winner_team_id = ?, status = "finished" WHERE id = ?',
                     (winner_id, tournament_id))
 
-        # Начисляем очки
         cur.execute('SELECT chat_id, format FROM tournaments WHERE id = ?', (tournament_id,))
         chat_id, fmt = cur.fetchone()
 
-        # 1 место
         cur.execute('SELECT members FROM teams WHERE id = ?', (winner_id,))
         members1 = cur.fetchone()[0].split(',')
         add_points(chat_id, members1, POINTS_MAP[fmt].get(1, 0))
 
-        # 2 место
         if fmt in ['4', '8', '16']:
             cur.execute('''
                 SELECT team1_id, team2_id FROM matches
@@ -151,7 +135,6 @@ def finalize_tournament(cur, tournament_id: int, bracket: dict):
             members2 = cur.fetchone()[0].split(',')
             add_points(chat_id, members2, POINTS_MAP[fmt].get(2, 0))
 
-        # 3 место
         if fmt in ['8', '16']:
             cur.execute('''
                 SELECT winner_team_id FROM matches
@@ -164,7 +147,6 @@ def finalize_tournament(cur, tournament_id: int, bracket: dict):
                 members3 = cur.fetchone()[0].split(',')
                 add_points(chat_id, members3, POINTS_MAP[fmt].get(3, 0))
 
-        # 4 место (только 16)
         if fmt == '16':
             cur.execute('''
                 SELECT team1_id, team2_id FROM matches
@@ -175,3 +157,11 @@ def finalize_tournament(cur, tournament_id: int, bracket: dict):
             cur.execute('SELECT members FROM teams WHERE id = ?', (loser4,))
             members4 = cur.fetchone()[0].split(',')
             add_points(chat_id, members4, POINTS_MAP[fmt].get(4, 0))
+
+def get_next_format(current: str) -> str | None:
+    order = ["2", "4", "8", "16"]
+    try:
+        idx = order.index(current)
+        return order[idx + 1] if idx + 1 < len(order) else None
+    except ValueError:
+        return None
