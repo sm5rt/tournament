@@ -9,6 +9,21 @@ def tournament_format_kb():
         [InlineKeyboardButton(text="Рандомные команды", callback_data="format_random")]
     ])
 
+def expand_or_start_kb(current_format: str):
+    next_map = {"2": "4", "4": "8", "8": "16"}
+    buttons = []
+    if current_format in next_map:
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"➕ Расширить до {next_map[current_format]} команд",
+                callback_data=f"expand_{next_map[current_format]}"
+            )
+        ])
+    buttons.append([
+        InlineKeyboardButton(text="✅ Начать турнир", callback_data="start_tournament")
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
 def match_result_kb(match_id):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Команда 1 победила", callback_data=f"result_{match_id}_1")],
@@ -33,7 +48,6 @@ def tournament_action_kb(tournament_id):
 
 def main_menu_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Создать турнир", callback_data="create_tournament")],
         [InlineKeyboardButton(text="История турниров", callback_data="historytournament")],
         [InlineKeyboardButton(text="Рейтинг игроков", callback_data="list_players")],
         [InlineKeyboardButton(text="❓ Помощь", callback_data="help_command")]
