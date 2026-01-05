@@ -2,10 +2,12 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.exceptions import TelegramBadRequest
 from database import *
 from keyboards import *
 from utils import *
 import json
+from datetime import datetime
 
 router = Router()
 
@@ -359,6 +361,7 @@ async def show_leaderboard(message_or_callback):
     ''', (chat_id,))
     players = cur.fetchall()
     conn.close()
+
     if not players:
         text = "Нет данных о рейтинге."
     else:
@@ -367,7 +370,14 @@ async def show_leaderboard(message_or_callback):
         for i, (uname, pts) in enumerate(players):
             medal = medals[i] if i < 3 else ""
             text += f"{i+1}) {medal} {uname} — {pts} очков\n"
-    if isinstance(message_or_callback, Message):
-        await message_or_callback.answer(text)
-    else:
-        await message_or_callback.message.edit_text(text, reply_markup=main_menu_kb())
+
+    try:
+        if isinstance(message_or_callback, Message):
+            await message_or_callback.answer(text, reply_markup=main_menu_kb())
+        else:
+            await message_or_callback.message.edit_text(text, reply_markup=main_menu_kb())
+    except TelegramBadRequest as e:
+        if "message is not modified" in e.message:
+            pass  # Игнорируем
+        else:
+            raise
